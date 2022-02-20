@@ -1,0 +1,31 @@
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+    enabled: true
+    healthcheck:
+      enabled: true
+server:
+  port: 7000
+spring:
+  application:
+    name: document-generation-service
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/arsenal_sklad?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=Europe/Kiev
+    username: root
+    password: gtyy1186
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: docgen.1
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 5000
+        loggerLevel: basic
