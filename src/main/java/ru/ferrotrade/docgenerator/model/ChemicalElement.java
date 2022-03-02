@@ -13,6 +13,6 @@ public class ChemicalElement {
 
     public ChemicalElement(String name, String value) {
         this.name = name;
-        this.value = value.replaceAll(",", ".");
+        this.value = value.trim().replaceAll(",", ".");
     }
 }

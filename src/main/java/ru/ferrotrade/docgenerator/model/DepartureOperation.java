@@ -21,7 +21,7 @@ public class DepartureOperation {
 
     private static final DateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
 
-    private long operation_id;
+    private long id;
 
     private String bill;
 
@@ -29,7 +29,7 @@ public class DepartureOperation {
 
     private List<Position> positions;
 
-    private String customer;
+    private String contrAgent;
 
     private String username;
 
@@ -37,7 +37,7 @@ public class DepartureOperation {
 
     public DepartureOperation(String bill, String customer, String username, List<Position> positions) {
         this.bill = bill;
-        this.customer = customer;
+        this.contrAgent = customer;
         this.username = username;
         this.positions = positions;
         this.date = dateFormat.format(Calendar.getInstance().getTime());

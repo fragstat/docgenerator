@@ -13,7 +13,7 @@ public class PhysicalParameter {
 
     public PhysicalParameter(String name, String value) {
         this.name = name;
-        this.value = value.replaceAll(",", ".");
+        this.value = value.trim().replaceAll(",", ".");
     }
 
 }

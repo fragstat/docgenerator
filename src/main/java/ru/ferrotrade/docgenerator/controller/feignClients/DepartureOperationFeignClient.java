@@ -8,7 +8,7 @@ import ru.ferrotrade.docgenerator.model.DepartureOperation;
 @FeignClient(url = "http://localhost", name = "departureOperationClient")
 public interface DepartureOperationFeignClient {
 
-    @GetMapping("/api/departureOperation/{id}")
+    @GetMapping("/api/history/departure/{id}")
     DepartureOperation getDepartureOperation(@PathVariable("id") Long id);
 
 }

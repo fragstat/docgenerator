@@ -1,10 +1,6 @@
 eureka:
   client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka
-    enabled: true
-    healthcheck:
-      enabled: true
+    enabled: false
 server:
   port: 7000
 spring:
@@ -12,16 +8,12 @@ spring:
     name: document-generation-service
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: update
     show-sql: false
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/arsenal_sklad?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=Europe/Kiev
-    username: root
-    password: gtyy1186
-  kafka:
-    bootstrap-servers: localhost:9092
-    consumer:
-      group-id: docgen.1
+    url: jdbc:mysql://5.200.47.32:3306/arsenal?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=Europe/Kiev
+    username: sergey
+    password: vAlAvin2002
 feign:
   client:
     config:

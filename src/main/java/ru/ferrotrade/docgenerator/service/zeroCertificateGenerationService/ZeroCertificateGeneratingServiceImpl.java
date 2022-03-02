@@ -1,4 +1,4 @@
-package ru.ferrotrade.docgenerator.service.documentGeneratingService;
+package ru.ferrotrade.docgenerator.service.zeroCertificateGenerationService;
 
 import com.google.zxing.BinaryBitmap;
 import com.google.zxing.MultiFormatReader;
@@ -6,31 +6,23 @@ import com.google.zxing.NotFoundException;
 import com.google.zxing.Result;
 import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
 import com.google.zxing.common.HybridBinarizer;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import org.apache.commons.math3.util.Precision;
-import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
-import org.apache.poi.util.Units;
 import org.apache.poi.xwpf.usermodel.*;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import ru.ferrotrade.docgenerator.model.*;
 import ru.ferrotrade.docgenerator.repository.PartDataRepo;
 import ru.ferrotrade.docgenerator.repository.PlavDataRepo;
-import ru.ferrotrade.docgenerator.service.barcodeGenerationService.BarcodeGenerationService;
-import ru.ferrotrade.docgenerator.view.CertificateGenerationDataView;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
-public class DocumentGeneratingServiceImpl implements DocumentGeneratingService {
+public class ZeroCertificateGeneratingServiceImpl implements ZeroCertificateGeneratingService {
 
-    private static final String CERTIFICATE_EXAMPLE = "src/main/resources/documentsExamples/certificateExample.docx";
+    private static final String CERTIFICATE_EXAMPLE = "src/main/resources/documentsExamples/zeroCertificateExample.docx";
     private static final String PATH_OUT_TEST = "src/main/resources/";
 
     public static final SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy");
@@ -45,29 +37,18 @@ public class DocumentGeneratingServiceImpl implements DocumentGeneratingService 
 
     private final PlavDataRepo plavDataRepo;
 
-    private final BarcodeGenerationService barcodeGenerationService;
-
-    public DocumentGeneratingServiceImpl(PartDataRepo partDataRepo, PlavDataRepo plavDataRepo,
-                                         @Qualifier("qr") BarcodeGenerationService barcodeGenerationService) {
+    public ZeroCertificateGeneratingServiceImpl(PartDataRepo partDataRepo, PlavDataRepo plavDataRepo) {
         this.partDataRepo = partDataRepo;
         this.plavDataRepo = plavDataRepo;
-        this.barcodeGenerationService = barcodeGenerationService;
     }
 
     @Override
-    public File generateCertificatesFromDepartureOperation(DepartureOperation operation) {
-        List<CertificateGenerationDataView> dataViews = createCertificateDataViews(operation);
-        String pathName = PATH_OUT_TEST + operation.getId() + "/";
+    public File generateCertificatesFromCertificate(Certificate certificate) {
+        String pathName = PATH_OUT_TEST + certificate.getId() + "/";
         File folder = new File(pathName);
         folder.mkdirs();
-        if (folder.exists()) {
-            for (CertificateGenerationDataView dataView : dataViews) {
-                dataView.order = dataViews.indexOf(dataView) + 1;
-                generateCertificate(dataView,
-                        pathName);
-            }
-        }
-        return folder;
+        generateCertificate(certificate, pathName);
+        return Objects.requireNonNull(folder.listFiles())[0];
     }
 
     @Override
@@ -108,49 +89,21 @@ public class DocumentGeneratingServiceImpl implements DocumentGeneratingService 
         return parameterList;
     }
 
-    private static List<CertificateGenerationDataView> createCertificateDataViews(DepartureOperation departureOperation) {
-        TreeSet<Position> positions = new TreeSet<>(positionComparator);
-        positions.addAll(departureOperation.getPositions());
-        List<CertificateGenerationDataView> dataViews = new ArrayList<>();
-        for (Position position : positions) {
-            List<Position> departurePositions =
-                    departureOperation.getPositions().stream().filter(p -> positionComparator.compare(p,
-                            position) == 0).collect(Collectors.toList());
-            Double weight = Precision.round(departurePositions.stream().mapToDouble(Position::getMass).sum(),2);
-            dataViews.add(new CertificateGenerationDataView(position, departureOperation, weight,
-                    departurePositions.size()));
-        }
-        return dataViews;
-    }
-
-    private void generateCertificate(CertificateGenerationDataView dataView, String path) {
+    private void generateCertificate(Certificate cert, String path) {
         try (FileInputStream fileInputStream = new FileInputStream(CERTIFICATE_EXAMPLE)) {
             XWPFDocument certificate = new XWPFDocument(fileInputStream);
-            fillStringData(certificate, dataView.departureOperation, dataView.etalon, dataView.order);
-            fillTables(certificate, dataView);
-            String qr = setQR(certificate);
-            try (FileOutputStream fileOutputStream = new FileOutputStream(path + qr + ".docx")) {
+            String[] gostArray = cert.getGost().split(" ");
+            String gostString = gostArray[gostArray.length - 2] + " " + gostArray[gostArray.length - 1];
+            fillStringData(certificate, "", String.valueOf(cert.getId()), cert.getDate(), cert.getMark(),
+                    cert.getGost(), gostString);
+            fillTables(certificate, gostString, cert.getDiameter(), cert.getMark(), cert.getPlav(), cert.getPart(),
+                    cert.getPacking());
+            try (FileOutputStream fileOutputStream = new FileOutputStream(path + cert.getPart() + ".docx")) {
               certificate.write(fileOutputStream);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-    }
-
-    @SneakyThrows
-    private String setQR(XWPFDocument certificate) {
-        XWPFRun qrRun = certificate.getParagraphs().get(1).createRun();
-        certificate.getParagraphs().get(0).removeRun(0);
-        certificate.getParagraphs().get(1).setAlignment(ParagraphAlignment.CENTER);
-        byte[] bytes = barcodeGenerationService.generateCode().readAllBytes();
-        try {
-            qrRun.addPicture(new ByteArrayInputStream(bytes), Document.PICTURE_TYPE_PNG, "qr" , Units.toEMU(100),
-                    Units.toEMU(100));
-        } catch (InvalidFormatException | IOException e) {
-            e.printStackTrace();
-        }
-        return readQR(new ByteArrayInputStream(bytes));
     }
 
     private String readQR(ByteArrayInputStream is) throws NotFoundException, IOException {
@@ -160,75 +113,72 @@ public class DocumentGeneratingServiceImpl implements DocumentGeneratingService 
         return result.getText();
     }
 
-    private void fillStringData(XWPFDocument certificate, DepartureOperation operation, Position position,
-                                Integer order) {
-
+    private void fillStringData(XWPFDocument certificate, String customer, String id, Date date, String mark,
+                                String gost, String gostString) {
         List<XWPFParagraph> paragraphs = certificate.getParagraphs();
-        paragraphs.get(9).getRuns().get(0).setText(" " + operation.getContrAgent());
-        paragraphs.get(12).getRuns().get(0).setText("А-" + operation.getId() + "/" + order + " от " +
-                sdf.format(Calendar.getInstance().getTime()) + ".");
-        paragraphs.get(15).getRuns().get(1).setText(position.getMark() + ".");
-        paragraphs.get(21).getRuns().get(0).setText(" " + "ГОСТ" + ".");
-
+        paragraphs.get(17).getRuns().get(0).setText(" " + customer);
+        paragraphs.get(20).getRuns().get(0).setText("А-" + id + " от " +
+                sdf.format(date) + ".");
+        paragraphs.get(23).getRuns().get(0).setText(gost + ".");
+        paragraphs.get(29).getRuns().get(0).setText(" " + gostString + ".");
     }
 
-    private void fillTables(XWPFDocument doc, CertificateGenerationDataView dataView) {
-        Position p = dataView.etalon;
-
+    private void fillTables(XWPFDocument doc, String gost, String diameter, String mark, String plav, String part,
+                            String packing) {
         List<XWPFTable> table = doc.getTables();
         XWPFTable mainTable = table.get(0);
         XWPFTableRow xwpfTableRow = mainTable.getRow(1);
 
-        XWPFTableCell mark = xwpfTableRow.getCell(1);
-        XWPFParagraph markParagraph = mark.addParagraph();
+        XWPFTableCell markCell = xwpfTableRow.getCell(1);
+        XWPFParagraph markParagraph = markCell.addParagraph();
         markParagraph.setAlignment(ParagraphAlignment.CENTER);
         markParagraph.setFirstLineIndent(0);
         XWPFRun markRun = markParagraph.createRun();
-        markRun.setText("Проволока " + p.getDiameter() + " " + p.getMark() + " ГОСТ");
+        markRun.setText("Проволока " + diameter + " " + mark + " " + gost);
         markRun.setFontFamily("Garamond");
         markRun.setFontSize(11);
-        mark.removeParagraph(0);
-        mark.setWidthType(TableWidthType.AUTO);
+        markCell.removeParagraph(0);
+        markCell.setWidthType(TableWidthType.AUTO);
 
-        XWPFTableCell diameter = xwpfTableRow.getCell(2);
-        XWPFParagraph diameterParagraph = diameter.addParagraph();
+        XWPFTableCell diameterCell = xwpfTableRow.getCell(2);
+        XWPFParagraph diameterParagraph = diameterCell.addParagraph();
         diameterParagraph.setAlignment(ParagraphAlignment.CENTER);
         diameterParagraph.setFirstLineIndent(0);
         XWPFRun diameterRun = diameterParagraph.createRun();
-        diameterRun.setText(String.valueOf(Precision.round(Double.parseDouble(p.getDiameter()), 2)));
+        diameterRun.setText(diameter);
         diameterRun.setFontFamily("Garamond");
         diameterRun.setFontSize(11);
-        diameter.removeParagraph(0);
-        diameter.setWidthType(TableWidthType.AUTO);
+        diameterCell.removeParagraph(0);
+        diameterCell.setWidthType(TableWidthType.AUTO);
 
-        XWPFTableCell plav = xwpfTableRow.getCell(3);
-        XWPFParagraph plavParagraph = plav.addParagraph();
+        XWPFTableCell plavCell = xwpfTableRow.getCell(3);
+        XWPFParagraph plavParagraph = plavCell.addParagraph();
         plavParagraph.setAlignment(ParagraphAlignment.CENTER);
         plavParagraph.setFirstLineIndent(0);
         XWPFRun plavRun = plavParagraph.createRun();
-        plavRun.setText(p.getPlav());
+        plavRun.setText(plav);
         plavRun.setFontFamily("Garamond");
         plavRun.setFontSize(11);
-        plav.removeParagraph(0);
-        plav.setWidthType(TableWidthType.AUTO);
+        plavCell.removeParagraph(0);
+        plavCell.setWidthType(TableWidthType.AUTO);
 
-        XWPFTableCell part = xwpfTableRow.getCell(4);
-        XWPFParagraph partParagraph = part.addParagraph();
+        XWPFTableCell partCell = xwpfTableRow.getCell(4);
+        XWPFParagraph partParagraph = partCell.addParagraph();
         partParagraph.setAlignment(ParagraphAlignment.CENTER);
         partParagraph.setFirstLineIndent(0);
         XWPFRun partRun = partParagraph.createRun();
-        partRun.setText(p.getPart());
+        partRun.setText(part);
         partRun.setFontFamily("Garamond");
         partRun.setFontSize(11);
-        part.removeParagraph(0);
-        part.setWidthType(TableWidthType.AUTO);
+        partCell.removeParagraph(0);
+        partCell.setWidthType(TableWidthType.AUTO);
 
         XWPFTableCell amount = xwpfTableRow.getCell(5);
         XWPFParagraph amountParagraph = amount.addParagraph();
         amountParagraph.setAlignment(ParagraphAlignment.CENTER);
         amountParagraph.setFirstLineIndent(0);
         XWPFRun amountRun = amountParagraph.createRun();
-        amountRun.setText(String.valueOf(dataView.amount));
+        amountRun.setText("");
         amountRun.setFontFamily("Garamond");
         amountRun.setFontSize(11);
         amount.removeParagraph(0);
@@ -239,25 +189,25 @@ public class DocumentGeneratingServiceImpl implements DocumentGeneratingService 
         weightParagraph.setAlignment(ParagraphAlignment.CENTER);
         weightParagraph.setFirstLineIndent(0);
         XWPFRun weightRun = weightParagraph.createRun();
-        weightRun.setText(String.valueOf(dataView.weight));
+        weightRun.setText("");
         weightRun.setFontFamily("Garamond");
         weightRun.setFontSize(11);
         weight.removeParagraph(0);
         weight.setWidthType(TableWidthType.AUTO);
 
-        XWPFTableCell packing = xwpfTableRow.getCell(7);
-        XWPFParagraph packingParagraph = packing.addParagraph();
+        XWPFTableCell packingCell = xwpfTableRow.getCell(7);
+        XWPFParagraph packingParagraph = packingCell.addParagraph();
         packingParagraph.setAlignment(ParagraphAlignment.CENTER);
         packingParagraph.setFirstLineIndent(0);
         XWPFRun packingRun = packingParagraph.createRun();
-        packingRun.setText(p.getPacking());
+        packingRun.setText(packing);
         packingRun.setFontFamily("Garamond");
         packingRun.setFontSize(11);
-        packing.removeParagraph(0);
-        packing.setWidthType(TableWidthType.AUTO);
+        packingCell.removeParagraph(0);
+        packingCell.setWidthType(TableWidthType.AUTO);
 
-        fillPlavTable(p.getPlav(), table.get(1));
-        fillPartTable(p.getPart(), table.get(2));
+        fillPlavTable(plav, table.get(1));
+        fillPartTable(part, table.get(2));
     }
 
     private void fillPartTable(String part, XWPFTable table) {

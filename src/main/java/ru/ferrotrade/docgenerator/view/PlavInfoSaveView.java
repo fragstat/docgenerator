@@ -1,6 +1,7 @@
 package ru.ferrotrade.docgenerator.view;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import ru.ferrotrade.docgenerator.model.ChemicalElement;
 
